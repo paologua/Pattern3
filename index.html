@@ -2,91 +2,105 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pattern Observer System</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pattern Observer Pro Ultra</title>
     <style>
-        body { font-family: sans-serif; background: #121212; color: white; padding: 10px; }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .signal-btn { background: #333; border: 1px solid #555; color: white; padding: 10px; border-radius: 5px; font-size: 12px; }
-        .active { background: #007bff; border-color: #0056b3; }
-        #output { margin-top: 20px; padding: 15px; background: #222; border-radius: 8px; border-left: 5px solid #007bff; }
-        h2 { font-size: 1.2rem; color: #007bff; }
+        body { font-family: 'Segoe UI', sans-serif; background: #0a0a0a; color: #e0e0e0; margin: 0; padding: 10px; }
+        .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px; }
+        .btn { background: #1a1a1a; border: 1px solid #333; color: #888; padding: 10px 2px; border-radius: 4px; font-size: 10px; }
+        .btn.active { background: #007bff; color: white; border-color: #00c3ff; }
+        .panel { background: #161616; padding: 12px; border-radius: 8px; margin-top: 10px; border-top: 3px solid #007bff; }
+        .bar-container { background: #333; height: 10px; border-radius: 5px; margin: 5px 0; overflow: hidden; }
+        .bar { height: 100%; transition: 0.3s; }
+        .alert { color: #ff4d4d; font-weight: bold; font-size: 0.8rem; display: none; }
+        .advice { color: #ffc107; font-size: 0.85rem; margin-top: 8px; border-left: 2px solid #ffc107; padding-left: 8px; }
     </style>
 </head>
 <body>
-    <h2>PATTERN OBSERVER v2.0</h2>
-    
-    <div id="controls" style="margin-bottom: 15px;">
-        <button onclick="clearAll()" style="background:#dc3545; color:white; border:none; padding:10px; border-radius:5px; width:48%;">RESET BASELINE</button>
-        <button onclick="exportData()" style="background:#28a745; color:white; border:none; padding:10px; border-radius:5px; width:48%;">EXPORT JSON</button>
+    <select id="ctx" onchange="update()">
+        <option value="FORMALE">👔 FORMALE</option>
+        <option value="NEGOZIALE">🤝 NEGOZIALE</option>
+        <option value="CONFLITTUALE">🔥 CONFLITTUALE</option>
+    </select>
+
+    <div id="btn-container" class="grid"></div>
+
+    <div class="panel">
+        <div id="alert-box" class="alert">⚠️ INCONGRUENZA RILEVATA (NV vs PV)</div>
+        
+        <div style="font-size: 0.8rem; margin: 10px 0;">
+            NV <div class="bar-container"><div id="bar-nv" class="bar" style="background: #007bff; width: 0%"></div></div>
+            PV <div class="bar-container"><div id="bar-pv" class="bar" style="background: #28a745; width: 0%"></div></div>
+        </div>
+
+        <div id="res" style="font-size: 0.9rem;"></div>
+        <div id="adv" class="advice"></div>
     </div>
 
-    <div id="buttons" class="grid"></div>
-
-    <div id="output">
-        <strong>ANALISI PREDITTIVA:</strong>
-        <div id="result-content">In attesa di segnali...</div>
+    <div id="log-container" style="font-size: 0.7rem; color: #666; margin-top: 10px; height: 60px; overflow-y: auto; border-top: 1px solid #333; padding-top: 5px;">
+        <strong>Log Sessione:</strong><div id="log"></div>
     </div>
+
+    <button onclick="reset()" style="width:100%; background:#333; color:white; border:none; padding:10px; margin-top:10px; border-radius:5px;">RESET BASELINE</button>
 
     <script src="data.js"></script>
     <script src="engine.js"></script>
     <script>
-        let activeSignals = new Set();
-        const container = document.getElementById('buttons');
+        let selected = new Set();
+        let sessionLog = [];
 
-        function renderButtons() {
-            container.innerHTML = '';
+        function render() {
+            const cont = document.getElementById('btn-container');
+            cont.innerHTML = '';
             Object.keys(SEGNALI_MASTER).forEach(id => {
-                const btn = document.createElement('button');
-                btn.className = activeSignals.has(id) ? 'signal-btn active' : 'signal-btn';
-                btn.innerText = SEGNALI_MASTER[id].nome;
-                btn.onclick = () => toggleSignal(id);
-                container.appendChild(btn);
+                const b = document.createElement('button');
+                b.className = selected.has(id) ? 'btn active' : 'btn';
+                b.innerText = SEGNALI_MASTER[id].nome;
+                b.onclick = () => { 
+                    selected.has(id) ? selected.delete(id) : selected.add(id); 
+                    render(); update(); 
+                };
+                cont.appendChild(b);
             });
         }
 
-        function toggleSignal(id) {
-            activeSignals.has(id) ? activeSignals.delete(id) : activeSignals.add(id);
-            renderButtons();
-            updateUI();
-        }
-
-        function clearAll() {
-            if(confirm("Vuoi resettare la sessione?")) {
-                activeSignals.clear();
-                renderButtons();
-                updateUI();
-            }
-        }
-
-        function exportData() {
-            const analisi = calcolaAnalisi(Array.from(activeSignals));
-            const report = generaExport(Array.from(activeSignals), analisi);
-            console.log(report);
-            alert("Dati esportati in console (F12)");
-        }
-
-        function updateUI() {
-            const analisi = calcolaAnalisi(Array.from(activeSignals));
-            const out = document.getElementById('result-content');
+        function update() {
+            const data = calcolaAnalisiCompleta(Array.from(selected), document.getElementById('ctx').value);
             
-            if (analisi.topPatterns.length === 0) {
-                out.innerHTML = "Baseline stabile. Nessuna deviazione rilevata.";
-                return;
-            }
+            // Aggiorna Barre
+            document.getElementById('bar-nv').style.width = Math.min(data.canali.NV * 20, 100) + '%';
+            document.getElementById('bar-pv').style.width = Math.min(data.canali.PV * 20, 100) + '%';
+            
+            // Alert Incongruenza
+            document.getElementById('alert-box').style.display = data.incongruenza ? 'block' : 'none';
 
-            const p = analisi.topPatterns[0];
-            out.innerHTML = `
-                <div style="font-size:1.1rem; margin-top:10px;">
-                    <span style="color:#007bff">●</span> <strong>Pattern:</strong> ${p.nome}<br>
-                    <span style="color:#007bff">●</span> <strong>Probabilità:</strong> ${p.prob}%<br>
-                    <span style="color:#28a745">●</span> <strong>Direzione:</strong> ${analisi.direzionePrevalente.toUpperCase()}<br>
-                    <span style="color:#ffc107">●</span> <strong>Intensità:</strong> ${analisi.intensita}
-                </div>
-            `;
+            const out = document.getElementById('res');
+            const adv = document.getElementById('adv');
+            
+            if(data.top.length > 0) {
+                out.innerHTML = `<strong>${data.top[0].nome}</strong> [${data.intensita}]<br>Direzione: ${data.direzione.toUpperCase()}`;
+                adv.innerHTML = `💡 ${data.consiglio}`;
+                
+                // Aggiungi al log se è un pattern nuovo
+                let entry = `${new Date().toLocaleTimeString()} - ${data.top[0].nome}`;
+                if (sessionLog[0] !== entry) {
+                    sessionLog.unshift(entry);
+                    document.getElementById('log').innerHTML = sessionLog.join('<br>');
+                }
+            } else {
+                out.innerHTML = "In attesa di deviazioni dalla baseline...";
+                adv.innerHTML = "";
+            }
         }
 
-        // Inizializzazione
-        renderButtons();
+        function reset() { 
+            if(confirm("Resettare analisi?")) { 
+                selected.clear(); sessionLog = []; 
+                document.getElementById('log').innerHTML = ""; 
+                render(); update(); 
+            } 
+        }
+        render();
     </script>
 </body>
+</html>
