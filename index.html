@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pattern Observer System</title>
+    <style>
+        body { font-family: sans-serif; background: #121212; color: white; padding: 10px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .signal-btn { background: #333; border: 1px solid #555; color: white; padding: 10px; border-radius: 5px; font-size: 12px; }
+        .active { background: #007bff; border-color: #0056b3; }
+        #output { margin-top: 20px; padding: 15px; background: #222; border-radius: 8px; border-left: 5px solid #007bff; }
+        h2 { font-size: 1.2rem; color: #007bff; }
+    </style>
+</head>
+<body>
+    <h2>PATTERN OBSERVER v2.0</h2>
+    
+    <div id="controls" style="margin-bottom: 15px;">
+        <button onclick="clearAll()" style="background:#dc3545; color:white; border:none; padding:10px; border-radius:5px; width:48%;">RESET BASELINE</button>
+        <button onclick="exportData()" style="background:#28a745; color:white; border:none; padding:10px; border-radius:5px; width:48%;">EXPORT JSON</button>
+    </div>
+
+    <div id="buttons" class="grid"></div>
+
+    <div id="output">
+        <strong>ANALISI PREDITTIVA:</strong>
+        <div id="result-content">In attesa di segnali...</div>
+    </div>
+
+    <script src="data.js"></script>
+    <script src="engine.js"></script>
+    <script>
+        let activeSignals = new Set();
+        const container = document.getElementById('buttons');
+
+        function renderButtons() {
+            container.innerHTML = '';
+            Object.keys(SEGNALI_MASTER).forEach(id => {
+                const btn = document.createElement('button');
+                btn.className = activeSignals.has(id) ? 'signal-btn active' : 'signal-btn';
+                btn.innerText = SEGNALI_MASTER[id].nome;
+                btn.onclick = () => toggleSignal(id);
+                container.appendChild(btn);
+            });
+        }
+
+        function toggleSignal(id) {
+            activeSignals.has(id) ? activeSignals.delete(id) : activeSignals.add(id);
+            renderButtons();
+            updateUI();
+        }
+
+        function clearAll() {
+            if(confirm("Vuoi resettare la sessione?")) {
+                activeSignals.clear();
+                renderButtons();
+                updateUI();
+            }
+        }
+
+        function exportData() {
+            const analisi = calcolaAnalisi(Array.from(activeSignals));
+            const report = generaExport(Array.from(activeSignals), analisi);
+            console.log(report);
+            alert("Dati esportati in console (F12)");
+        }
+
+        function updateUI() {
+            const analisi = calcolaAnalisi(Array.from(activeSignals));
+            const out = document.getElementById('result-content');
+            
+            if (analisi.topPatterns.length === 0) {
+                out.innerHTML = "Baseline stabile. Nessuna deviazione rilevata.";
+                return;
+            }
+
+            const p = analisi.topPatterns[0];
+            out.innerHTML = `
+                <div style="font-size:1.1rem; margin-top:10px;">
+                    <span style="color:#007bff">●</span> <strong>Pattern:</strong> ${p.nome}<br>
+                    <span style="color:#007bff">●</span> <strong>Probabilità:</strong> ${p.prob}%<br>
+                    <span style="color:#28a745">●</span> <strong>Direzione:</strong> ${analisi.direzionePrevalente.toUpperCase()}<br>
+                    <span style="color:#ffc107">●</span> <strong>Intensità:</strong> ${analisi.intensita}
+                </div>
+            `;
+        }
+
+        // Inizializzazione
+        renderButtons();
+    </script>
+</body>
