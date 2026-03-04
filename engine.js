@@ -47,3 +47,19 @@ function calcolaIntensita(punti) {
     if (punti > 50) return "FORTE";
     return "TENDENZA";
 }
+// Funzione per resettare tutti i segnali (Torna alla Baseline)
+function resetBaseline() {
+    return []; // Restituisce un array vuoto per resettare lo stato
+}
+
+// Genera un oggetto JSON pronto per l'export
+function generaExport(segnaliAttivi, analisi) {
+    return {
+        session_id: Date.now(),
+        timestamp: new Date().toLocaleString(),
+        segnali_rilevati: segnaliAttivi,
+        risultato_dominante: analisi.topPatterns[0] || null,
+        direzione: analisi.direzionePrevalente,
+        intensita: analisi.intensita
+    };
+}
